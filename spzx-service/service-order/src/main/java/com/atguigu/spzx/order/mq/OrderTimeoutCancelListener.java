@@ -20,7 +20,8 @@ import java.util.Date;
 @RocketMQMessageListener(
         topic = MqConst.TOPIC_ORDER_EVENT,
         consumerGroup = MqConst.CONSUMER_GROUP_TIMEOUT_CANCEL,
-        selectorExpression = MqConst.TAG_ORDER_TIMEOUT
+        selectorExpression = MqConst.TAG_ORDER_TIMEOUT,
+        maxReconsumeTimes = 5
 )
 @Slf4j
 public class OrderTimeoutCancelListener implements RocketMQListener<String> {
@@ -50,8 +51,8 @@ public class OrderTimeoutCancelListener implements RocketMQListener<String> {
     public void onMessage(String orderNo) {
         OrderInfo orderInfo = orderInfoMapper.getByOrderNo(orderNo);
         if (orderInfo == null) {
-            log.warn("timeout_cancel_skip_missing_order orderNo={}", orderNo);
-            return;
+            log.error("timeout_cancel_retryable_missing_order orderNo={}", orderNo);
+            throw new IllegalStateException("timeout_cancel_retryable_missing_order");
         }
         // 只取消仍处于待付款状态的订单（0）
         if (orderInfo.getOrderStatus() == null || orderInfo.getOrderStatus() != ORDER_STATUS_UNPAID) {
