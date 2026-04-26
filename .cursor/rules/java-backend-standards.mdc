@@ -1,0 +1,38 @@
+---
+description: Java后端编码规范（基于当前spzx风格）
+alwaysApply: true
+---
+
+# Java Backend Standards (spzx)
+
+## 架构与分层
+- Controller 只做路由、参数接收、鉴权入口、结果封装；复杂业务必须下沉到 Service。
+- Service 负责核心业务编排（库存、幂等、并发控制、远程调用顺序）；Mapper 仅负责持久化。
+- 禁止跨层直连：Controller 不直接操作 Mapper，Controller 不直接拼装复杂持久化对象。
+
+## 返回体与异常
+- Controller 层统一使用 `Result.build(data, ResultCodeEnum.XXX)` 返回。
+- 业务失败优先抛出 `GuiguException(ResultCodeEnum.XXX)`，避免返回魔法字符串和裸异常。
+- 空值判断使用显式写法（如 `Boolean.TRUE.equals(x)`、`obj == null`），避免 NPE。
+
+## 并发、幂等与库存
+- 涉及下单/秒杀必须有幂等保护（例如 `redisTemplate.opsForValue().setIfAbsent(...)`）。
+- 涉及库存扣减必须使用可证明的防超卖策略（分布式锁 + 原子扣减 / Redis 预扣 + 回滚）。
+- 锁获取失败、库存不足、远程扣减失败必须走统一错误码（如 `STOCK_LESS`）。
+- 捕获 `InterruptedException` 后必须 `Thread.currentThread().interrupt()` 再抛业务异常。
+
+## 远程调用与消息
+- Feign 调用结果必须做空值与状态校验，不可直接信任返回数据。
+- 发送 MQ 前先完成最小必要字段组装；消息体应可追踪（如包含 `orderNo`/`userId`/`skuId`）。
+- 延迟消息、超时消息必须注释清楚业务意图与关键参数来源。
+
+## 命名与可读性
+- 方法命名用动词短语：`submitOrder`、`getTrade`、`updateOrderStatus`。
+- Redis Key 构建使用私有方法集中管理（如 `buildStockKey`），避免散落硬编码。
+- 金额计算使用 `BigDecimal`，禁止使用 `double/float` 表示金额。
+- 仅在非显而易见逻辑前添加简短注释（例如幂等窗口、库存回滚、锁排序目的）。
+
+## 代码生成偏好
+- 新增 Controller 时默认补齐 `@Operation(summary = "...")`。
+- 新增 API 路径延续现有前缀风格（如 `/api/order/...` 与 `auth/...` 分段）。
+- 新增业务逻辑优先复用 `ResultCodeEnum` 既有错误码，不随意新增语义重复码。

@@ -1,0 +1,37 @@
+server:
+  port: 8501
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/db_spzx?characterEncoding=utf-8&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: 1234
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+mybatis:
+  config-location: classpath:/mybatis-config.xml
+  mapper-locations: classpath:/mapper/*/*.xml
+
+spzx:
+  auth:
+    noAuthUrls:
+      # --- 您的业务接口 ---
+      - /admin/system/index/login
+      - /admin/system/index/generateValidateCode
+      # --- Knife4j (Swagger) 相关资源 ---
+      - /doc.html          # Knife4j 增强UI的主页面
+      - /webjars/**        # 前端静态资源（JS, CSS, 字体等）
+      - /v3/api-docs/**    # 提供API结构化数据的接口（**必须**，Knife4j靠它获取数据）
+      - /swagger-resources/**  # Swagger 资源配置
+      - /swagger-resources
+      - /favicon.ico       # 页面图标（可选，避免404报错）
+
+  minio:
+    endpointUrl: http://127.0.0.1:9001
+    accessKey: admin
+    secretKey: admin123456
+    bucketName: spzx-bucket
