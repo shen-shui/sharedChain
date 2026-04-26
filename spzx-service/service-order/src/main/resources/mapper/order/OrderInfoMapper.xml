@@ -169,4 +169,13 @@
         id = #{id}
     </update>
 
+    <update id="updateStatusByOrderNo">
+        update order_info
+        set order_status = #{toStatus},
+            update_time = now()
+        where order_no = #{orderNo}
+          and order_status = #{fromStatus}
+          and is_deleted = 0
+    </update>
+
 </mapper>
