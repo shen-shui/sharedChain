@@ -32,3 +32,4 @@ mybatis:
 spzx:
   seckill:
     reservation-compensation-delay-ms: 60000
+    reservation-reconcile-delay-ms: 300000

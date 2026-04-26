@@ -51,6 +51,17 @@
         limit #{limit}
     </select>
 
+    <select id="findReservedByOrderStatus" resultMap="stockReservationMap">
+        select sr.id,sr.order_no,sr.user_id,sr.sku_id,sr.reserve_num,sr.reservation_status,sr.expire_time,sr.confirmed_time,sr.released_time,sr.create_time,sr.update_time,sr.is_deleted
+        from stock_reservation sr
+                 join order_info oi on oi.order_no = sr.order_no and oi.is_deleted = 0
+        where sr.reservation_status = 0
+          and oi.order_status = #{orderStatus}
+          and sr.is_deleted = 0
+        order by sr.id asc
+        limit #{limit}
+    </select>
+
     <update id="confirmByOrderNo">
         update stock_reservation
         set reservation_status = 1,
