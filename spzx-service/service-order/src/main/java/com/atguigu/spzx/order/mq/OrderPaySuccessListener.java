@@ -10,6 +10,7 @@ import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.OrderItemMapper;
 import com.atguigu.spzx.order.mapper.OrderLogMapper;
 import com.atguigu.spzx.order.mapper.StockReservationMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,7 @@ import java.util.List;
         consumerGroup = MqConst.CONSUMER_GROUP_PAY_SUCCESS,
         selectorExpression = MqConst.TAG_PAY_SUCCESS
 )
+@Slf4j
 public class OrderPaySuccessListener implements RocketMQListener<String> {
 
     private static final int ORDER_STATUS_UNPAID = 0;
@@ -52,13 +54,16 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
     public void onMessage(String orderNo) {
         OrderInfo orderInfo = orderInfoMapper.getByOrderNo(orderNo);
         if (orderInfo == null) {
+            log.warn("pay_success_skip_missing_order orderNo={}", orderNo);
             return;
         }
         // 幂等处理：如果已经是已支付状态，则不再处理
         if (orderInfo.getOrderStatus() != null && orderInfo.getOrderStatus() == ORDER_STATUS_PAID) {
+            log.info("pay_success_skip_already_paid orderNo={}", orderNo);
             return;
         }
         if (orderInfo.getOrderStatus() == null || orderInfo.getOrderStatus() != ORDER_STATUS_UNPAID) {
+            log.info("pay_success_skip_status_mismatch orderNo={} orderStatus={}", orderNo, orderInfo.getOrderStatus());
             return;
         }
 
@@ -70,7 +75,8 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
         orderInfoMapper.updateById(orderInfo);
 
         // 订单支付成功后，确认库存预占状态
-        stockReservationMapper.confirmByOrderNo(orderNo, RESERVATION_STATUS_RESERVED);
+        int confirmed = stockReservationMapper.confirmByOrderNo(orderNo, RESERVATION_STATUS_RESERVED);
+        log.info("pay_success_reservation_confirm orderNo={} confirmed={}", orderNo, confirmed);
 
         // 记录订单日志
         OrderLog orderLog = new OrderLog();
@@ -91,5 +97,6 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
         if (!skuSaleDtoList.isEmpty()) {
             productFeignClient.updateSkuSaleNum(skuSaleDtoList);
         }
+        log.info("pay_success_processed orderNo={} itemCount={}", orderNo, skuSaleDtoList.size());
     }
 }

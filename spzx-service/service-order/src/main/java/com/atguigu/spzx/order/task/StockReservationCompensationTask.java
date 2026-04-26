@@ -5,6 +5,7 @@ import com.atguigu.spzx.model.entity.order.StockReservation;
 import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.StockReservationMapper;
 import com.atguigu.spzx.order.properties.SeckillProperties;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
+@Slf4j
 public class StockReservationCompensationTask {
 
     private static final int ORDER_STATUS_UNPAID = 0;
@@ -43,22 +45,27 @@ public class StockReservationCompensationTask {
         if (expiredList == null || expiredList.isEmpty()) {
             return;
         }
+        int releasedCount = 0;
         for (StockReservation reservation : expiredList) {
             OrderInfo orderInfo = orderInfoMapper.getByOrderNo(reservation.getOrderNo());
             if (orderInfo == null) {
-                releaseAndRestore(reservation);
+                releasedCount += releaseAndRestore(reservation);
                 continue;
             }
             if (orderInfo.getOrderStatus() != null && orderInfo.getOrderStatus() == ORDER_STATUS_UNPAID) {
-                releaseAndRestore(reservation);
+                releasedCount += releaseAndRestore(reservation);
             }
         }
+        log.info("reservation_compensation_finished scanned={} released={}", expiredList.size(), releasedCount);
     }
 
-    private void releaseAndRestore(StockReservation reservation) {
+    private int releaseAndRestore(StockReservation reservation) {
         int released = stockReservationMapper.releaseByOrderNo(reservation.getOrderNo(), RESERVATION_STATUS_RESERVED);
         if (released > 0 && reservation.getSkuId() != null && reservation.getReserveNum() != null) {
             redisTemplate.opsForValue().increment(buildStockKey(reservation.getSkuId()), reservation.getReserveNum());
+            log.info("reservation_compensation_restock orderNo={} skuId={} reserveNum={}",
+                    reservation.getOrderNo(), reservation.getSkuId(), reservation.getReserveNum());
         }
+        return released;
     }
 }
