@@ -1,11 +1,14 @@
 package com.atguigu.spzx.order.mq;
 
 import com.atguigu.spzx.feign.product.ProductFeignClient;
+import com.atguigu.spzx.model.vo.common.Result;
+import com.atguigu.spzx.model.vo.common.ResultCodeEnum;
 import com.atguigu.spzx.model.constant.MqConst;
 import com.atguigu.spzx.model.dto.product.SkuSaleDto;
 import com.atguigu.spzx.model.entity.order.OrderInfo;
 import com.atguigu.spzx.model.entity.order.OrderItem;
 import com.atguigu.spzx.model.entity.order.OrderLog;
+import com.atguigu.spzx.model.entity.order.StockReservation;
 import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.OrderItemMapper;
 import com.atguigu.spzx.order.mapper.OrderLogMapper;
@@ -33,6 +36,8 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
     private static final int ORDER_STATUS_UNPAID = 0;
     private static final int ORDER_STATUS_PAID = 1;
     private static final int RESERVATION_STATUS_RESERVED = 0;
+    private static final int RESERVATION_STATUS_CONFIRMED = 1;
+    private static final int RESERVATION_STATUS_RELEASED = 2;
 
     @Autowired
     private OrderInfoMapper orderInfoMapper;
@@ -67,16 +72,45 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
             return;
         }
 
+        StockReservation reservation = stockReservationMapper.getByOrderNo(orderNo);
+        if (reservation == null) {
+            log.warn("pay_success_skip_missing_reservation orderNo={}", orderNo);
+            return;
+        }
+        if (reservation.getReservationStatus() != null && reservation.getReservationStatus() == RESERVATION_STATUS_RELEASED) {
+            log.warn("pay_success_skip_released_reservation orderNo={}", orderNo);
+            return;
+        }
+
+        int confirmed = 0;
+        if (reservation.getReservationStatus() != null && reservation.getReservationStatus() == RESERVATION_STATUS_RESERVED) {
+            confirmed = stockReservationMapper.confirmByOrderNo(orderNo, RESERVATION_STATUS_RESERVED);
+        } else if (reservation.getReservationStatus() != null && reservation.getReservationStatus() == RESERVATION_STATUS_CONFIRMED) {
+            confirmed = 1;
+        }
+        log.info("pay_success_reservation_confirm orderNo={} confirmed={}", orderNo, confirmed);
+        if (confirmed <= 0) {
+            return;
+        }
+
+        // 已支付订单才写入 MySQL 最终库存，补齐秒杀场景最终账本闭环
+        List<OrderItem> orderItemList = orderItemMapper.findByOrderId(orderInfo.getId());
+        for (OrderItem item : orderItemList) {
+            Result<Boolean> result = productFeignClient.deductStock(item.getSkuId(), item.getSkuNum());
+            if (result == null || !ResultCodeEnum.SUCCESS.getCode().equals(result.getCode())
+                    || !Boolean.TRUE.equals(result.getData())) {
+                log.error("pay_success_mysql_deduct_failed orderNo={} skuId={} skuNum={} result={}",
+                        orderNo, item.getSkuId(), item.getSkuNum(), result);
+                throw new IllegalStateException("pay_success_mysql_deduct_failed");
+            }
+        }
+
         // 更新订单状态
         orderInfo.setOrderStatus(ORDER_STATUS_PAID);
         // 支付方式：2 表示支付宝
         orderInfo.setPayType(2);
         orderInfo.setPaymentTime(new Date());
         orderInfoMapper.updateById(orderInfo);
-
-        // 订单支付成功后，确认库存预占状态
-        int confirmed = stockReservationMapper.confirmByOrderNo(orderNo, RESERVATION_STATUS_RESERVED);
-        log.info("pay_success_reservation_confirm orderNo={} confirmed={}", orderNo, confirmed);
 
         // 记录订单日志
         OrderLog orderLog = new OrderLog();
@@ -86,7 +120,6 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
         orderLogMapper.save(orderLog);
 
         // 异步更新商品销量
-        List<OrderItem> orderItemList = orderItemMapper.findByOrderId(orderInfo.getId());
         List<SkuSaleDto> skuSaleDtoList = new ArrayList<>();
         for (OrderItem item : orderItemList) {
             SkuSaleDto skuSaleDto = new SkuSaleDto();
