@@ -28,7 +28,8 @@ import java.util.Date;
 @RocketMQMessageListener(
         topic = MqConst.TOPIC_ORDER_EVENT,
         consumerGroup = MqConst.CONSUMER_GROUP_SECKILL,
-        selectorExpression = MqConst.TAG_SECKILL
+        selectorExpression = MqConst.TAG_SECKILL,
+        maxReconsumeTimes = 5
 )
 @Slf4j
 public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessage> {
@@ -64,8 +65,8 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
         // 查询商品信息（用于价格、名称、图片）
         ProductSku productSku = productFeignClient.getBySkuId(message.getSkuId());
         if (productSku == null) {
-            log.warn("seckill_consume_skip_missing_sku orderNo={} skuId={}", message.getOrderNo(), message.getSkuId());
-            return;
+            log.error("seckill_consume_retryable_missing_sku orderNo={} skuId={}", message.getOrderNo(), message.getSkuId());
+            throw new IllegalStateException("seckill_consume_retryable_missing_sku");
         }
 
         BigDecimal price = message.getSeckillPrice() != null

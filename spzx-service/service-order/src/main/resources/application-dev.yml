@@ -38,4 +38,3 @@ spzx:
     manual-reconcile-batch-size: 500
     reservation-compensation-delay-ms: 60000
     reservation-reconcile-delay-ms: 300000
-    reservation-reconcile-delay-ms: 300000

@@ -28,7 +28,8 @@ import java.util.List;
 @RocketMQMessageListener(
         topic = MqConst.TOPIC_ORDER_EVENT,
         consumerGroup = MqConst.CONSUMER_GROUP_PAY_SUCCESS,
-        selectorExpression = MqConst.TAG_PAY_SUCCESS
+        selectorExpression = MqConst.TAG_PAY_SUCCESS,
+        maxReconsumeTimes = 5
 )
 @Slf4j
 public class OrderPaySuccessListener implements RocketMQListener<String> {
@@ -59,8 +60,8 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
     public void onMessage(String orderNo) {
         OrderInfo orderInfo = orderInfoMapper.getByOrderNo(orderNo);
         if (orderInfo == null) {
-            log.warn("pay_success_skip_missing_order orderNo={}", orderNo);
-            return;
+            log.error("pay_success_retryable_missing_order orderNo={}", orderNo);
+            throw new IllegalStateException("pay_success_retryable_missing_order");
         }
         // 幂等处理：如果已经是已支付状态，则不再处理
         if (orderInfo.getOrderStatus() != null && orderInfo.getOrderStatus() == ORDER_STATUS_PAID) {
@@ -74,8 +75,8 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
 
         StockReservation reservation = stockReservationMapper.getByOrderNo(orderNo);
         if (reservation == null) {
-            log.warn("pay_success_skip_missing_reservation orderNo={}", orderNo);
-            return;
+            log.error("pay_success_retryable_missing_reservation orderNo={}", orderNo);
+            throw new IllegalStateException("pay_success_retryable_missing_reservation");
         }
         if (reservation.getReservationStatus() != null && reservation.getReservationStatus() == RESERVATION_STATUS_RELEASED) {
             log.warn("pay_success_skip_released_reservation orderNo={}", orderNo);
