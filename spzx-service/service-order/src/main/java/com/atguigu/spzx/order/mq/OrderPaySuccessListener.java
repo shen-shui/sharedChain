@@ -105,9 +105,14 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
             }
         }
 
-        // 更新订单状态
+        // 使用 CAS 更新订单状态，避免与超时关单并发时相互覆盖
+        int statusUpdated = orderInfoMapper.updateStatusByOrderNo(orderNo, ORDER_STATUS_UNPAID, ORDER_STATUS_PAID);
+        if (statusUpdated <= 0) {
+            log.info("pay_success_skip_status_cas_failed orderNo={}", orderNo);
+            return;
+        }
+        // 状态更新成功后再补充支付信息
         orderInfo.setOrderStatus(ORDER_STATUS_PAID);
-        // 支付方式：2 表示支付宝
         orderInfo.setPayType(2);
         orderInfo.setPaymentTime(new Date());
         orderInfoMapper.updateById(orderInfo);

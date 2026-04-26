@@ -16,4 +16,6 @@ public interface OrderInfoMapper {
     OrderInfo getByOrderNo(String orderNo);
 
     void updateById(OrderInfo orderInfo);
+
+    int updateStatusByOrderNo(String orderNo, Integer fromStatus, Integer toStatus);
 }

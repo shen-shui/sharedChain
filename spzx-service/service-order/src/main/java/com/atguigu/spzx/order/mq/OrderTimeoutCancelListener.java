@@ -59,6 +59,12 @@ public class OrderTimeoutCancelListener implements RocketMQListener<String> {
             return;
         }
 
+        // 使用 CAS 更新订单状态，避免与支付成功并发时相互覆盖
+        int statusUpdated = orderInfoMapper.updateStatusByOrderNo(orderNo, ORDER_STATUS_UNPAID, ORDER_STATUS_CANCELLED);
+        if (statusUpdated <= 0) {
+            log.info("timeout_cancel_skip_status_cas_failed orderNo={}", orderNo);
+            return;
+        }
         orderInfo.setOrderStatus(ORDER_STATUS_CANCELLED);
         orderInfo.setCancelTime(new Date());
         orderInfo.setCancelReason("订单超时未支付，系统自动取消");
