@@ -40,9 +40,20 @@
           and is_deleted = 0
     </select>
 
-    <update id="updateStatusByOrderNo">
+    <update id="confirmByOrderNo">
         update stock_reservation
-        set reservation_status = #{toStatus},
+        set reservation_status = 1,
+            confirmed_time = now(),
+            update_time = now()
+        where order_no = #{orderNo}
+          and reservation_status = #{fromStatus}
+          and is_deleted = 0
+    </update>
+
+    <update id="releaseByOrderNo">
+        update stock_reservation
+        set reservation_status = 2,
+            released_time = now(),
             update_time = now()
         where order_no = #{orderNo}
           and reservation_status = #{fromStatus}

@@ -10,5 +10,7 @@ public interface StockReservationMapper {
 
     StockReservation getByOrderNo(String orderNo);
 
-    int updateStatusByOrderNo(String orderNo, Integer fromStatus, Integer toStatus);
+    int confirmByOrderNo(String orderNo, Integer fromStatus);
+
+    int releaseByOrderNo(String orderNo, Integer fromStatus);
 }
