@@ -40,6 +40,17 @@
           and is_deleted = 0
     </select>
 
+    <select id="findExpiredReserved" resultMap="stockReservationMap">
+        select <include refid="columns" />
+        from stock_reservation
+        where reservation_status = 0
+          and expire_time is not null
+          and expire_time <= now()
+          and is_deleted = 0
+        order by id asc
+        limit #{limit}
+    </select>
+
     <update id="confirmByOrderNo">
         update stock_reservation
         set reservation_status = 1,
