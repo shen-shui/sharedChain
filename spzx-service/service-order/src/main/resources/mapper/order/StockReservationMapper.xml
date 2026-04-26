@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.atguigu.spzx.order.mapper.StockReservationMapper">
+
+    <resultMap id="stockReservationMap" type="com.atguigu.spzx.model.entity.order.StockReservation" autoMapping="true">
+    </resultMap>
+
+    <sql id="columns">
+        id,order_no,user_id,sku_id,reserve_num,reservation_status,expire_time,confirmed_time,released_time,create_time,update_time,is_deleted
+    </sql>
+
+    <insert id="save" useGeneratedKeys="true" keyProperty="id">
+        insert into stock_reservation (
+            id,
+            order_no,
+            user_id,
+            sku_id,
+            reserve_num,
+            reservation_status,
+            expire_time,
+            confirmed_time,
+            released_time
+        ) values (
+            #{id},
+            #{orderNo},
+            #{userId},
+            #{skuId},
+            #{reserveNum},
+            #{reservationStatus},
+            #{expireTime},
+            #{confirmedTime},
+            #{releasedTime}
+        )
+    </insert>
+
+    <select id="getByOrderNo" resultMap="stockReservationMap">
+        select <include refid="columns" />
+        from stock_reservation
+        where order_no = #{orderNo}
+          and is_deleted = 0
+    </select>
+
+    <update id="updateStatusByOrderNo">
+        update stock_reservation
+        set reservation_status = #{toStatus},
+            update_time = now()
+        where order_no = #{orderNo}
+          and reservation_status = #{fromStatus}
+          and is_deleted = 0
+    </update>
+
+</mapper>

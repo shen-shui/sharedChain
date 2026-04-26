@@ -5,14 +5,17 @@ import com.atguigu.spzx.model.constant.MqConst;
 import com.atguigu.spzx.model.entity.order.OrderInfo;
 import com.atguigu.spzx.model.entity.order.OrderItem;
 import com.atguigu.spzx.model.entity.order.OrderLog;
+import com.atguigu.spzx.model.entity.order.StockReservation;
 import com.atguigu.spzx.model.entity.product.ProductSku;
 import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.OrderItemMapper;
 import com.atguigu.spzx.order.mapper.OrderLogMapper;
+import com.atguigu.spzx.order.mapper.StockReservationMapper;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -28,6 +31,9 @@ import java.util.Date;
 )
 public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessage> {
 
+    private static final int RESERVATION_STATUS_RESERVED = 0;
+    private static final long RESERVATION_TIMEOUT_MILLIS = 30L * 60 * 1000;
+
     @Autowired
     private OrderInfoMapper orderInfoMapper;
 
@@ -40,7 +46,11 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
     @Autowired
     private ProductFeignClient productFeignClient;
 
+    @Autowired
+    private StockReservationMapper stockReservationMapper;
+
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void onMessage(SeckillOrderMessage message) {
         // 幂等：如果已存在同一订单号，直接返回
         OrderInfo exist = orderInfoMapper.getByOrderNo(message.getOrderNo());
@@ -88,5 +98,15 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
         orderLog.setNote("秒杀下单创建订单");
         orderLog.setCreateTime(new Date());
         orderLogMapper.save(orderLog);
+
+        // 建单成功后写入库存预占记录，后续用于支付确认或超时回补
+        StockReservation stockReservation = new StockReservation();
+        stockReservation.setOrderNo(orderInfo.getOrderNo());
+        stockReservation.setUserId(orderInfo.getUserId());
+        stockReservation.setSkuId(message.getSkuId());
+        stockReservation.setReserveNum(message.getSkuNum());
+        stockReservation.setReservationStatus(RESERVATION_STATUS_RESERVED);
+        stockReservation.setExpireTime(new Date(System.currentTimeMillis() + RESERVATION_TIMEOUT_MILLIS));
+        stockReservationMapper.save(stockReservation);
     }
 }
