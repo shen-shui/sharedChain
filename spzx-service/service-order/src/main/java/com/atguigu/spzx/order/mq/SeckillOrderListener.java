@@ -11,6 +11,7 @@ import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.OrderItemMapper;
 import com.atguigu.spzx.order.mapper.OrderLogMapper;
 import com.atguigu.spzx.order.mapper.StockReservationMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,7 @@ import java.util.Date;
         consumerGroup = MqConst.CONSUMER_GROUP_SECKILL,
         selectorExpression = MqConst.TAG_SECKILL
 )
+@Slf4j
 public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessage> {
 
     private static final int RESERVATION_STATUS_RESERVED = 0;
@@ -55,12 +57,14 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
         // 幂等：如果已存在同一订单号，直接返回
         OrderInfo exist = orderInfoMapper.getByOrderNo(message.getOrderNo());
         if (exist != null) {
+            log.info("seckill_consume_skip_duplicate orderNo={}", message.getOrderNo());
             return;
         }
 
         // 查询商品信息（用于价格、名称、图片）
         ProductSku productSku = productFeignClient.getBySkuId(message.getSkuId());
         if (productSku == null) {
+            log.warn("seckill_consume_skip_missing_sku orderNo={} skuId={}", message.getOrderNo(), message.getSkuId());
             return;
         }
 
@@ -108,5 +112,7 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
         stockReservation.setReservationStatus(RESERVATION_STATUS_RESERVED);
         stockReservation.setExpireTime(new Date(System.currentTimeMillis() + RESERVATION_TIMEOUT_MILLIS));
         stockReservationMapper.save(stockReservation);
+        log.info("seckill_consume_created orderNo={} userId={} skuId={} reserveNum={}",
+                orderInfo.getOrderNo(), orderInfo.getUserId(), message.getSkuId(), message.getSkuNum());
     }
 }
