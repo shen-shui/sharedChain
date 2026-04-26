@@ -4,6 +4,7 @@ import com.atguigu.spzx.model.entity.order.OrderInfo;
 import com.atguigu.spzx.model.entity.order.StockReservation;
 import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.StockReservationMapper;
+import com.atguigu.spzx.order.properties.SeckillProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -18,7 +19,6 @@ public class StockReservationCompensationTask {
 
     private static final int ORDER_STATUS_UNPAID = 0;
     private static final int RESERVATION_STATUS_RESERVED = 0;
-    private static final int COMPENSATION_BATCH_SIZE = 100;
 
     @Autowired
     private StockReservationMapper stockReservationMapper;
@@ -29,6 +29,9 @@ public class StockReservationCompensationTask {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
+    @Autowired
+    private SeckillProperties seckillProperties;
+
     private String buildStockKey(Long skuId) {
         return "seckill:stock:" + skuId;
     }
@@ -36,7 +39,9 @@ public class StockReservationCompensationTask {
     // 定时补偿过期预占，兜底处理消息丢失或消费者异常导致的未释放场景
     @Scheduled(fixedDelayString = "${spzx.seckill.reservation-compensation-delay-ms:60000}")
     public void compensateExpiredReservation() {
-        List<StockReservation> expiredList = stockReservationMapper.findExpiredReserved(COMPENSATION_BATCH_SIZE);
+        List<StockReservation> expiredList = stockReservationMapper.findExpiredReserved(
+                seckillProperties.getReservationCompensationBatchSize()
+        );
         if (expiredList == null || expiredList.isEmpty()) {
             return;
         }
