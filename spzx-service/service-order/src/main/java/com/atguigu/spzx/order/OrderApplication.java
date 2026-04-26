@@ -5,11 +5,13 @@ import com.atguigu.spzx.common.service.anno.EnableUserWebMvcConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableFeignClients(basePackages = {"com.atguigu.spzx"})
 @EnableUserTokenFeignInterceptor
 @EnableUserWebMvcConfiguration
+@EnableScheduling
 public class OrderApplication {
 
     public static void main(String[] args) {

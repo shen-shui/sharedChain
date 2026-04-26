@@ -28,3 +28,7 @@ rocketmq:
 mybatis:
   config-location: classpath:mybatis-config.xml
   mapper-locations: classpath:mapper/*/*.xml
+
+spzx:
+  seckill:
+    reservation-compensation-delay-ms: 60000

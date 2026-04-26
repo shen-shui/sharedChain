@@ -3,6 +3,8 @@ package com.atguigu.spzx.order.mapper;
 import com.atguigu.spzx.model.entity.order.StockReservation;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 @Mapper
 public interface StockReservationMapper {
 
@@ -13,4 +15,6 @@ public interface StockReservationMapper {
     int confirmByOrderNo(String orderNo, Integer fromStatus);
 
     int releaseByOrderNo(String orderNo, Integer fromStatus);
+
+    List<StockReservation> findExpiredReserved(int limit);
 }
