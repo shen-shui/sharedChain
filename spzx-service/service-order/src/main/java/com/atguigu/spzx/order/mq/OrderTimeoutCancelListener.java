@@ -6,6 +6,7 @@ import com.atguigu.spzx.model.entity.order.OrderLog;
 import com.atguigu.spzx.order.mapper.OrderInfoMapper;
 import com.atguigu.spzx.order.mapper.OrderLogMapper;
 import com.atguigu.spzx.order.mapper.StockReservationMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +22,7 @@ import java.util.Date;
         consumerGroup = MqConst.CONSUMER_GROUP_TIMEOUT_CANCEL,
         selectorExpression = MqConst.TAG_ORDER_TIMEOUT
 )
+@Slf4j
 public class OrderTimeoutCancelListener implements RocketMQListener<String> {
 
     private static final int ORDER_STATUS_UNPAID = 0;
@@ -48,10 +50,12 @@ public class OrderTimeoutCancelListener implements RocketMQListener<String> {
     public void onMessage(String orderNo) {
         OrderInfo orderInfo = orderInfoMapper.getByOrderNo(orderNo);
         if (orderInfo == null) {
+            log.warn("timeout_cancel_skip_missing_order orderNo={}", orderNo);
             return;
         }
         // 只取消仍处于待付款状态的订单（0）
         if (orderInfo.getOrderStatus() == null || orderInfo.getOrderStatus() != ORDER_STATUS_UNPAID) {
+            log.info("timeout_cancel_skip_status_mismatch orderNo={} orderStatus={}", orderNo, orderInfo.getOrderStatus());
             return;
         }
 
@@ -66,8 +70,11 @@ public class OrderTimeoutCancelListener implements RocketMQListener<String> {
             com.atguigu.spzx.model.entity.order.StockReservation reservation = stockReservationMapper.getByOrderNo(orderNo);
             if (reservation != null && reservation.getSkuId() != null && reservation.getReserveNum() != null) {
                 redisTemplate.opsForValue().increment(buildStockKey(reservation.getSkuId()), reservation.getReserveNum());
+                log.info("timeout_cancel_restock orderNo={} skuId={} reserveNum={}",
+                        orderNo, reservation.getSkuId(), reservation.getReserveNum());
             }
         }
+        log.info("timeout_cancel_processed orderNo={} reservationReleased={}", orderNo, released);
 
         OrderLog orderLog = new OrderLog();
         orderLog.setOrderId(orderInfo.getId());

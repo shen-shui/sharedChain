@@ -8,6 +8,7 @@ import com.atguigu.spzx.model.vo.common.Result;
 import com.atguigu.spzx.model.vo.common.ResultCodeEnum;
 import com.atguigu.spzx.order.mq.SeckillOrderMessage;
 import com.atguigu.spzx.util.AuthContextUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeUnit;
  */
 @RestController
 @RequestMapping("/api/order/seckill")
+@Slf4j
 public class SeckillController {
 
     private static final long USER_LIMIT_TTL_MINUTES = 30L;
@@ -80,6 +82,7 @@ public class SeckillController {
         String userKey = buildUserKey(userId, skuId);
         Boolean firstSeckill = redisTemplate.opsForValue().setIfAbsent(userKey, "1", USER_LIMIT_TTL_MINUTES, TimeUnit.MINUTES);
         if (!Boolean.TRUE.equals(firstSeckill)) {
+            log.info("seckill_rejected_repeat userId={} skuId={} userKey={}", userId, skuId, userKey);
             // 已经参与过本次秒杀
             return Result.<String>build("请勿重复秒杀", ResultCodeEnum.DATA_ERROR);
         }
@@ -89,6 +92,7 @@ public class SeckillController {
         if (Boolean.FALSE.equals(redisTemplate.hasKey(stockKey))) {
             ProductSku productSku = productFeignClient.getBySkuId(skuId);
             if (productSku == null || productSku.getStockNum() == null || productSku.getStockNum() <= 0) {
+                log.info("seckill_rejected_no_stock userId={} skuId={}", userId, skuId);
                 return Result.<String>build(null, ResultCodeEnum.STOCK_LESS);
             }
             redisTemplate.opsForValue().set(stockKey, String.valueOf(productSku.getStockNum()));
@@ -96,6 +100,7 @@ public class SeckillController {
 
         Long left = executePreDeductLua(stockKey);
         if (left == null || left < 0) {
+            log.info("seckill_rejected_deduct_failed userId={} skuId={} left={}", userId, skuId, left);
             return Result.<String>build(null, ResultCodeEnum.STOCK_LESS);
         }
 
@@ -115,6 +120,7 @@ public class SeckillController {
 
         // 发送到秒杀队列，由后台异步创建订单（削峰填谷）
         rocketMQTemplate.syncSend(MqConst.destination(MqConst.TAG_SECKILL), message);
+        log.info("seckill_accepted orderNo={} userId={} skuId={} leftStock={}", orderNo, userId, skuId, left);
 
         return Result.<String>build("秒杀请求已受理，正在排队中", ResultCodeEnum.SUCCESS);
     }
