@@ -7,6 +7,7 @@ import com.atguigu.spzx.model.entity.user.UserInfo;
 import com.atguigu.spzx.model.vo.common.Result;
 import com.atguigu.spzx.model.vo.common.ResultCodeEnum;
 import com.atguigu.spzx.order.mq.SeckillOrderMessage;
+import com.atguigu.spzx.order.properties.SeckillProperties;
 import com.atguigu.spzx.util.AuthContextUtil;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +28,6 @@ import java.util.concurrent.TimeUnit;
 @RequestMapping("/api/order/seckill")
 public class SeckillController {
 
-    private static final long USER_LIMIT_TTL_MINUTES = 30L;
-    private static final String SECKILL_ACTIVITY_ID = "default";
-
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
@@ -39,12 +37,15 @@ public class SeckillController {
     @Autowired
     private ProductFeignClient productFeignClient;
 
+    @Autowired
+    private SeckillProperties seckillProperties;
+
     private String buildStockKey(Long skuId) {
         return "seckill:stock:" + skuId;
     }
 
     private String buildUserKey(Long userId, Long skuId) {
-        return "seckill:order:" + SECKILL_ACTIVITY_ID + ":" + userId + ":" + skuId;
+        return "seckill:order:" + seckillProperties.getActivityId() + ":" + userId + ":" + skuId;
     }
 
     private Long executePreDeductLua(String stockKey) {
@@ -78,7 +79,12 @@ public class SeckillController {
 
         // 防止同一用户对同一商品重复秒杀
         String userKey = buildUserKey(userId, skuId);
-        Boolean firstSeckill = redisTemplate.opsForValue().setIfAbsent(userKey, "1", USER_LIMIT_TTL_MINUTES, TimeUnit.MINUTES);
+        Boolean firstSeckill = redisTemplate.opsForValue().setIfAbsent(
+                userKey,
+                "1",
+                seckillProperties.getUserLimitTtlMinutes(),
+                TimeUnit.MINUTES
+        );
         if (!Boolean.TRUE.equals(firstSeckill)) {
             // 已经参与过本次秒杀
             return Result.<String>build("请勿重复秒杀", ResultCodeEnum.DATA_ERROR);
