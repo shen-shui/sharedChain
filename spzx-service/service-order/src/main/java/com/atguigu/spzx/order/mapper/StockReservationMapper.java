@@ -17,4 +17,6 @@ public interface StockReservationMapper {
     int releaseByOrderNo(String orderNo, Integer fromStatus);
 
     List<StockReservation> findExpiredReserved(int limit);
+
+    List<StockReservation> findReservedByOrderStatus(Integer orderStatus, int limit);
 }
