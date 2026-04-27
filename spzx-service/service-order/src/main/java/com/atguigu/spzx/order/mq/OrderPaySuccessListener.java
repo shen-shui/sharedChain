@@ -73,6 +73,13 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
             return;
         }
 
+        // 先使用 CAS 抢占状态所有权，避免“扣库成功但状态 CAS 失败”导致的并发错账
+        int statusUpdated = orderInfoMapper.updateStatusByOrderNo(orderNo, ORDER_STATUS_UNPAID, ORDER_STATUS_PAID);
+        if (statusUpdated <= 0) {
+            log.info("pay_success_skip_status_cas_failed orderNo={}", orderNo);
+            return;
+        }
+
         StockReservation reservation = stockReservationMapper.getByOrderNo(orderNo);
         if (reservation == null) {
             log.error("pay_success_retryable_missing_reservation orderNo={}", orderNo);
@@ -80,7 +87,7 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
         }
         if (reservation.getReservationStatus() != null && reservation.getReservationStatus() == RESERVATION_STATUS_RELEASED) {
             log.warn("pay_success_skip_released_reservation orderNo={}", orderNo);
-            return;
+            throw new IllegalStateException("pay_success_retryable_released_reservation");
         }
 
         int confirmed = 0;
@@ -91,7 +98,7 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
         }
         log.info("pay_success_reservation_confirm orderNo={} confirmed={}", orderNo, confirmed);
         if (confirmed <= 0) {
-            return;
+            throw new IllegalStateException("pay_success_retryable_reservation_confirm_failed");
         }
 
         // 已支付订单才写入 MySQL 最终库存，补齐秒杀场景最终账本闭环
@@ -106,12 +113,6 @@ public class OrderPaySuccessListener implements RocketMQListener<String> {
             }
         }
 
-        // 使用 CAS 更新订单状态，避免与超时关单并发时相互覆盖
-        int statusUpdated = orderInfoMapper.updateStatusByOrderNo(orderNo, ORDER_STATUS_UNPAID, ORDER_STATUS_PAID);
-        if (statusUpdated <= 0) {
-            log.info("pay_success_skip_status_cas_failed orderNo={}", orderNo);
-            return;
-        }
         // 状态更新成功后再补充支付信息
         orderInfo.setOrderStatus(ORDER_STATUS_PAID);
         orderInfo.setPayType(2);

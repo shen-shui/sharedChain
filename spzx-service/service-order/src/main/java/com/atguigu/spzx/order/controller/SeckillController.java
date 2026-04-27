@@ -93,15 +93,11 @@ public class SeckillController {
             return Result.<String>build("请勿重复秒杀", ResultCodeEnum.DATA_ERROR);
         }
 
-        // 初始化或预减库存
+        // 严格预热驱动：库存 key 必须在活动预热阶段提前写入 Redis，运行期不再回源 MySQL 初始化
         String stockKey = buildStockKey(skuId);
         if (Boolean.FALSE.equals(redisTemplate.hasKey(stockKey))) {
-            ProductSku productSku = productFeignClient.getBySkuId(skuId);
-            if (productSku == null || productSku.getStockNum() == null || productSku.getStockNum() <= 0) {
-                log.info("seckill_rejected_no_stock userId={} skuId={}", userId, skuId);
-                return Result.<String>build(null, ResultCodeEnum.STOCK_LESS);
-            }
-            redisTemplate.opsForValue().set(stockKey, String.valueOf(productSku.getStockNum()));
+            log.info("seckill_rejected_stock_not_preheated userId={} skuId={} stockKey={}", userId, skuId, stockKey);
+            return Result.<String>build(null, ResultCodeEnum.STOCK_LESS);
         }
 
         Long left = executePreDeductLua(stockKey);
