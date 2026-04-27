@@ -113,6 +113,7 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
         stockReservation.setReservationStatus(RESERVATION_STATUS_RESERVED);
         stockReservation.setExpireTime(new Date(System.currentTimeMillis() + RESERVATION_TIMEOUT_MILLIS));
         stockReservationMapper.save(stockReservation);
+
         log.info("seckill_consume_created orderNo={} userId={} skuId={} reserveNum={}",
                 orderInfo.getOrderNo(), orderInfo.getUserId(), message.getSkuId(), message.getSkuNum());
     }
