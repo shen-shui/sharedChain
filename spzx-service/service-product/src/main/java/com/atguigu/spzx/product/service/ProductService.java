@@ -21,4 +21,7 @@ public interface ProductService {
 
     // 扣减库存
     Boolean deductStock(Long skuId, Integer skuNum);
+
+    // 回补库存（用于订单取消等场景）
+    Boolean restoreStock(Long skuId, Integer skuNum);
 }

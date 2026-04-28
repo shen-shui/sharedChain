@@ -23,4 +23,8 @@ public interface ProductFeignClient {
     @PostMapping("/api/product/inner/deductStock/{skuId}/{skuNum}")
     Result<Boolean> deductStock(@PathVariable("skuId") Long skuId,
                                 @PathVariable("skuNum") Integer skuNum);
+
+    @PostMapping("/api/product/inner/restoreStock/{skuId}/{skuNum}")
+    Result<Boolean> restoreStock(@PathVariable("skuId") Long skuId,
+                                 @PathVariable("skuNum") Integer skuNum);
 }
