@@ -81,4 +81,10 @@
           and stock_num &gt;= #{skuNum}
     </update>
 
+    <update id="restoreStock">
+        update product_sku
+        set stock_num = stock_num + #{skuNum}
+        where id = #{skuId}
+    </update>
+
 </mapper>

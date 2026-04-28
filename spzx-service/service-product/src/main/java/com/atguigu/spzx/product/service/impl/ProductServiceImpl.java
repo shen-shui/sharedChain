@@ -92,4 +92,10 @@ public class ProductServiceImpl implements ProductService {
         int rows = productSkuMapper.deductStock(skuId, skuNum);
         return rows > 0;
     }
+
+    @Override
+    public Boolean restoreStock(Long skuId, Integer skuNum) {
+        int rows = productSkuMapper.restoreStock(skuId, skuNum);
+        return rows > 0;
+    }
 }

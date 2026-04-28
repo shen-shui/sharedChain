@@ -20,4 +20,7 @@ public interface ProductSkuMapper {
 
     // 扣减库存
     int deductStock(Long skuId, Integer skuNum);
+
+    // 回补库存
+    int restoreStock(Long skuId, Integer skuNum);
 }

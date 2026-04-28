@@ -21,9 +21,19 @@ public class ProductInnerController {
                                        @PathVariable Integer skuNum) {
         Boolean success = productService.deductStock(skuId, skuNum);
         if (!Boolean.TRUE.equals(success)) {
-            return Result.build(false, ResultCodeEnum.STOCK_LESS);
+            return Result.<Boolean>build(false, ResultCodeEnum.STOCK_LESS);
         }
-        return Result.build(true, ResultCodeEnum.SUCCESS);
+        return Result.<Boolean>build(true, ResultCodeEnum.SUCCESS);
+    }
+
+    @PostMapping("/restoreStock/{skuId}/{skuNum}")
+    public Result<Boolean> restoreStock(@PathVariable Long skuId,
+                                        @PathVariable Integer skuNum) {
+        Boolean success = productService.restoreStock(skuId, skuNum);
+        if (!Boolean.TRUE.equals(success)) {
+            return Result.<Boolean>build(false, ResultCodeEnum.DATA_ERROR);
+        }
+        return Result.<Boolean>build(true, ResultCodeEnum.SUCCESS);
     }
 }
 
