@@ -14,9 +14,13 @@ import com.atguigu.spzx.order.mapper.StockReservationMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -51,6 +55,9 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
 
     @Autowired
     private StockReservationMapper stockReservationMapper;
+
+    @Autowired
+    private RocketMQTemplate rocketMQTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -113,6 +120,24 @@ public class SeckillOrderListener implements RocketMQListener<SeckillOrderMessag
         stockReservation.setReservationStatus(RESERVATION_STATUS_RESERVED);
         stockReservation.setExpireTime(new Date(System.currentTimeMillis() + RESERVATION_TIMEOUT_MILLIS));
         stockReservationMapper.save(stockReservation);
+
+        final String orderNo = orderInfo.getOrderNo();
+        Runnable sendTimeoutDelay = () -> rocketMQTemplate.syncSend(
+                MqConst.destination(MqConst.TAG_ORDER_TIMEOUT),
+                MessageBuilder.withPayload(orderNo).build(),
+                3000,
+                MqConst.DELAY_LEVEL_ORDER_TIMEOUT
+        );
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendTimeoutDelay.run();
+                }
+            });
+        } else {
+            sendTimeoutDelay.run();
+        }
 
         log.info("seckill_consume_created orderNo={} userId={} skuId={} reserveNum={}",
                 orderInfo.getOrderNo(), orderInfo.getUserId(), message.getSkuId(), message.getSkuNum());
